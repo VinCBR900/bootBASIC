@@ -14,14 +14,19 @@
         ; Revision date: Jul/22/2019. Boot image now includes 'system'
         ;                             statement.
         ;
-        ; This version is functionally identical to Oscar's version,
+        ;
+        ; See LICENSE
+        ;
+        ; This version Copyright 2026 Vincent Crabtree
+        ; This modification is functionally identical to Oscar's version,
         ; but designed to run in 8bitworkshop and also includes
-        ; a Mandelbrot demo pre-typed.
+        ; a Mandelbrot demo pre-typed. It also adds a NEW command to erase
+        ; the Demo program if desired.
         ;
         ; USER'S MANUAL:
         ;
         ; Line entry is done with keyboard, finish the line with Enter.
-        ; Only 19 characters per line as maximum.
+        ; Only 31 characters per line as maximum.
         ;
         ; Backspace can be used, don't be fooled by the fact
         ; that screen isn't deleted (it's all right in the buffer).
@@ -151,7 +156,7 @@ progloc:    equ 0x8000  ; Program address
 
 stack:      equ 0xff00  ; Stack address
 max_line:   equ 1000    ; First unavailable line number
-max_length: equ 20      ; Maximum length of line
+max_length: equ 32      ; Maximum length of line inc CR
 max_size:   equ max_line*max_length ; Max. program size
 
 	SECTION .text
@@ -589,49 +594,49 @@ error_message:
 	; Cant use two ORGS so pad to Progloc
         TIMES progloc-($-$$) DB 0x0d
 
-; Each line is given a 20 byte slot inc 0x0d sentinel
+; Each line is given a max_length byte slot inc 0x0d sentinel
 
 program:	; start of program?
         TIMES (progloc + 10*max_length)-($-$$) DB 0x0d
-        db " rem 16-bit fixed Pt"   
+        db " rem 16-bit fixed Pt",0x0d      
         TIMES (progloc + 20*max_length)-($-$$) DB 0x0d
-	db " rem Mandelbrot"   
+	db " rem Mandelbrot",0x0d      
         TIMES (progloc + 30*max_length)-($-$$) DB 0x0d
-        db " y=-307"   
+        db " y=-307",0x0d      
         TIMES (progloc + 40*max_length)-($-$$) DB 0x0d
-        db " yl=307",0x0d   
+        db " l=307",0x0d   
         TIMES (progloc + 50*max_length)-($-$$) DB 0x0d
-        db " xstart=-512",0x0d   
+        db " s=-512",0x0d   
         TIMES (progloc + 60*max_length)-($-$$) DB 0x0d
-        db " xend=256",0x0d   
+        db " e=256",0x0d   
         TIMES (progloc + 70*max_length)-($-$$) DB 0x0d
-        db " ystep=24",0x0d   
+        db " t=24",0x0d   
         TIMES (progloc + 80*max_length)-($-$$) DB 0x0d
-        db " xstep=12",0x0d   
+        db " p=12",0x0d   
         TIMES (progloc + 90*max_length)-($-$$) DB 0x0d
-        db " x=xstart",0x0d   
+        db " x=s",0x0d   
         TIMES (progloc + 100*max_length)-($-$$) DB 0x0d
-        db " cr=x",0x0d   
+        db " a=x",0x0d   
         TIMES (progloc + 110*max_length)-($-$$) DB 0x0d
-        db " ci=y",0x0d   
+        db " b=y",0x0d   
         TIMES (progloc + 120*max_length)-($-$$) DB 0x0d
-        db " zr=0",0x0d   
+        db " c=0",0x0d   
         TIMES (progloc + 130*max_length)-($-$$) DB 0x0d
-        db " zi=0",0x0d   
+        db " d=0",0x0d   
         TIMES (progloc + 140*max_length)-($-$$) DB 0x0d
         db " i=0",0x0d   
         TIMES (progloc + 150*max_length)-($-$$) DB 0x0d
-        db " zr2=(zr*zr)/256",0x0d   
+        db " f=(c*c)/256",0x0d   
         TIMES (progloc + 160*max_length)-($-$$) DB 0x0d
-        db " zi2=(zi*zi)/256",0x0d   
+        db " g=(d*d)/256",0x0d   
         TIMES (progloc + 170*max_length)-($-$$) DB 0x0d
-        db " m=(zr2+zi2)/1025",0x0d
+        db " m=(f+g)/1025",0x0d
         TIMES (progloc + 171*max_length)-($-$$) DB 0x0d
         db " if m goto 220",0x0d
         TIMES (progloc + 180*max_length)-($-$$) DB 0x0d
-        db " zi=((zr*zi)/128)+ci",0x0d   
+        db " d=((c*d)/128)+b",0x0d   
         TIMES (progloc + 190*max_length)-($-$$) DB 0x0d
-        db " zr=zr2-zi2+cr",0x0d   
+        db " c=f-g+a",0x0d   
         TIMES (progloc + 200*max_length)-($-$$) DB 0x0d
         db " i=i+1",0x0d   
         TIMES (progloc + 210*max_length)-($-$$) DB 0x0d
@@ -735,13 +740,13 @@ program:	; start of program?
         TIMES (progloc + 301*max_length)-($-$$) DB 0x0d
         db " goto 310",0x0d   
         TIMES (progloc + 310*max_length)-($-$$) DB 0x0d
-        db " x=x+xstep",0x0d   
+        db " x=x+p",0x0d   
         TIMES (progloc + 320*max_length)-($-$$) DB 0x0d
         db " if x-268 goto 100",0x0d
         TIMES (progloc + 330*max_length)-($-$$) DB 0x0d
         db " print",0x0d   
         TIMES (progloc + 340*max_length)-($-$$) DB 0x0d
-        db " y=y+ystep",0x0d   
+        db " y=y+t",0x0d   
         TIMES (progloc + 350*max_length)-($-$$) DB 0x0d
         db " if y-317 goto 90",0x0d
 prog_end:
