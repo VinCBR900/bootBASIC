@@ -1,13 +1,10 @@
-        ; uBASIC8088.asm - 2kbyte x86 Tiny BASIC for Embedded systems
-
-        ; bootBASIC Copyright 2019 Original author: Oscar Toledo G.
+; TINY BASIC 8086 COM EDITION
+        ; Copyright 2019 Original author: Oscar Toledo G.
         ; Website: http://nanochess.org/
         ;
         ;  Licensed under the BSD 2-Clause License. See LICENSE file.
         ;
-        ; This version Copyright 2026 Vincent Crabtree
-        ; https://github.com/VinCBR900/8088-Tiny-BASIC/
-        ;
+        ; Copyright 2026 this version: Vincent Crabtree
         ; Version 2.1.0 (2026-04-08)
         ; Target is embedded 8088 Minimal systems with 2-4kbyte EPROM, 4kbyte RAM
         ;
@@ -30,16 +27,6 @@
         ; - Tokenized keywords and signed 16-bit numeric literals.
         ; - FREE command and startup free-RAM sign-on.
         ; - CHR$ support in PRINT.
-
-        ; TO-DO: All depends on Space - in order of preference
-        ; PEEK/POKE, USR(addr) 
-        ; Improved error numbers
-        ; GOSUB/RETURN, FOR/NEXT
-        ; multi-statement lines
-        ; HELP (unless almost free table walk)
-        ; AND/OR/XOR/NOT 
-        ; ON/GOTO/GOSUB
-        ; DATA/RESTORE
 
         cpu 8086
 
@@ -120,13 +107,14 @@ statement:
         add ax,ax
         mov bx,ax
         call spaces
-        jmp word [statement_tokens+bx]
+        call word [bx+statement_tokens] ; indirect near call through token table
 statement_text:                     ; reached only for unrecognised non-token char
         call get_variable       ; treat as variable name
         push ax                 ; save address
         lodsb                   ; read next char
         cmp al,'='              ; assignment?
-        je assignment           ; yes
+        jne error               ; not assignment - error (inverted; assignment is next)
+        jmp assignment          ; yes - assignment (near jmp, not short)
 
         ;
         ; An error happened
@@ -189,7 +177,9 @@ list_output:
         ret
 list_kw:
         cmp al,tok_new
-        jb output           ; Below token range: emit as raw char
+        jnb list_kw_token   ; >= tok_new: handle as token
+        jmp output          ; below token range: emit as raw char (near jmp)
+list_kw_token:
         cmp al,tok_chr
         jbe list_kw_emit    ; in range - emit keyword
         jmp error           ; above range: near jump to error
@@ -253,7 +243,7 @@ expr:
 f20:    cmp byte [si],'-'   ; Subtraction operator?
         je f19              ; Yes, jump
         cmp byte [si],'+'   ; Addition operator?
-        jne f6              ; No, return
+        jne expr_ret        ; No, return (f6 out of range - local ret)
         push ax
         call expr1_2        ; Call second tier
 f15:    pop cx
@@ -266,6 +256,9 @@ f19:
         neg ax              ; Negate it (a - b converted to a + -b)
         jmp f15
 
+expr_ret:               ; local return used by expr/expr1 when f6 out of short range
+        ret
+
         ;
         ; Handle an expression.
         ; Second tier: division & multiplication.
@@ -277,7 +270,7 @@ expr1:
 f21:    cmp byte [si],'/'   ; Division operator?
         je f23              ; Yes, jump
         cmp byte [si],'*'   ; Multiplication operator?
-        jne f6              ; No, return
+        jne expr_ret        ; No, return (f6 out of range - local ret)
 
         push ax
         call expr2_2        ; Call third tier
@@ -427,10 +420,11 @@ goto_statement:
         call find_line      ; DI = pointer to line >= original AX
         pop bx              ; BX = target line number
         cmp word [di],bx    ; Exact match?
-        jne f6              ; No, return (line not found)
+        jne goto_ret        ; No, return - line not found (f6 out of range)
         cmp byte [running],0
         je run_from_di
         mov [run_next],di
+goto_ret:               ; local return used when f6 out of short range
         ret
 
         ;
@@ -487,7 +481,7 @@ f1_not_bs:
         cmp al,0x0d     ; CR pressed?
         je f1_store_cr
         cmp cx,32       ; Max chars reached?
-        jae f1          ; Ignore extra chars
+        jnb f1          ; Ignore extra chars (jae=jnb)
         call output
         stosb
         inc cx
@@ -716,7 +710,7 @@ walk_lines_1:
         or bx,bx
         je walk_lines_done  ; end marker - stop
         cmp bx,ax           ; line >= threshold?
-        jae walk_lines_done ; yes - stop (for find_line semantics)
+        jnb walk_lines_done ; yes - stop (jae=jnb)
         call next_line_ptr
         mov di,si
         jmp walk_lines_1
@@ -887,15 +881,15 @@ kw_table:
 
 ROM_END:
 
-;        TIMES 0x1000-($-$$) DB 0
+        TIMES RAM_START-($-$$) DB 0
 
-        ORG RAM_START
+;        ORG RAM_START
 
-vars:       DW 26 DUP (0)
+vars:       DW 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0 ; 26 vars a-z
 running:    DW 0
 run_next:   DW 0
-line:       DW 17 DUP (0)      ; 34 bytes, max 32 chars + CR
-line_tok:   DW 17 DUP (0)
+line:       DW 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0 ; 34 bytes input line
+line_tok:   DW 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0 ; 34 bytes tokenized line
 
 program:
         ; 10 PRINT "MANDELBROT 16BIT"
