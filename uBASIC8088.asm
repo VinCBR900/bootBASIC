@@ -1,11 +1,13 @@
-        ; TINY BASIC 8086 COM EDITION
-        ; Copyright 2019 Original author: Oscar Toledo G.
+        ; uBASIC8088.asm - 2kbyte x86 Tiny BASIC for Embedded systems
+        ;
+        ; Original author Copyright 2019 Oscar Toledo G.
         ; Website: http://nanochess.org/
         ;
-        ;  Licensed under the BSD 2-Clause License. See LICENSE file.
+        ; Licensed under the BSD 2-Clause License. See LICENSE file.
         ;
         ; Copyright 2026 this version: Vincent Crabtree
         ; Version 2.0.0 (2026-04-08)
+        ;
         ; Target is embedded 8088 Minimal systems with 2-4kbyte EPROM, 4kbyte RAM
         ;
         ; Changes since original:
@@ -15,6 +17,16 @@
         ; - Tokenized keywords and signed 16-bit numeric literals.
         ; - FREE command and startup free-RAM sign-on.
         ; - CHR$ support in PRINT.
+
+        ; TO-DO: All depends on Space - in order of preference
+        ; PEEK/POKE, USR(addr) 
+        ; Improved error numbers
+        ; GOSUB/RETURN, FOR/NEXT
+        ; multi-statement lines
+        ; HELP (unless almost free table walk)
+        ; AND/OR/XOR/NOT 
+        ; ON/GOTO/GOSUB
+        ; DATA/RESTORE
 
         cpu 8086
 
