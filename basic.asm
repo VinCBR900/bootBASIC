@@ -628,7 +628,7 @@ error_message:
 
 program:	; start of program?
         TIMES (progloc + 10*max_length)-($-$$) DB 0x0d
-        db " rem 16-bit fixed pt",0x0d      
+        db " rem 16-bit fixedpt",0x0d      
         TIMES (progloc + 20*max_length)-($-$$) DB 0x0d
 	db " rem mandelbrot",0x0d      
         TIMES (progloc + 30*max_length)-($-$$) DB 0x0d
@@ -762,6 +762,6 @@ program:	; start of program?
         TIMES (progloc + 340*max_length)-($-$$) DB 0x0d
         db " y=y+t",0x0d   
         TIMES (progloc + 350*max_length)-($-$$) DB 0x0d
-        db " if y-307 goto 90",0x0d
+        db " if y-317 goto 90",0x0d
 prog_end:  
         end
