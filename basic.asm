@@ -1,4 +1,4 @@
-        ;
+;
         ; bootBASIC interpreter in 512 bytes (boot sector)
         ;
         ; by Oscar Toledo G.
@@ -717,13 +717,17 @@ program:	; start of program?
         TIMES (progloc + 255*max_length)-($-$$) DB 0x0d
         db " goto 260",0x0d
         TIMES (progloc + 257*max_length)-($-$$) DB 0x0d
-        db " if i-3 goto 250",0x0d
+        db " if i-3 goto 262",0x0d  ; FIX: was goto 250, caused infinite loop for i==1
         TIMES (progloc + 258*max_length)-($-$$) DB 0x0d
         db " goto 260",0x0d
         TIMES (progloc + 260*max_length)-($-$$) DB 0x0d
         db " print ",0x22,".",0x22,";",0x0d
         TIMES (progloc + 261*max_length)-($-$$) DB 0x0d
-        db " goto 310",0x0d   
+        db " goto 310",0x0d
+        TIMES (progloc + 262*max_length)-($-$$) DB 0x0d
+        db " print ",0x22," ",0x22,";",0x0d  ; i==1: print space
+        TIMES (progloc + 263*max_length)-($-$$) DB 0x0d
+        db " goto 310",0x0d
         TIMES (progloc + 270*max_length)-($-$$) DB 0x0d
         db " print ",0x22,"-",0x22,";",0x0d   
         TIMES (progloc + 271*max_length)-($-$$) DB 0x0d
