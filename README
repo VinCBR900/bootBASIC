@@ -12,7 +12,8 @@ http://nanochess.org
 https://github.com/nanochess
 ---------------------------------------------------
 This version by Vincent Crabtree,
-WORK IN PROGRESS - Minor changes to get to work in 8bitworkshop
+Minor changes to get to work in 8bitworkshop (c) 2026
+http://8bitworkshop.com/v3.12.1/?redir.html?platform=x86&githubURL=https%3A%2F%2Fgithub.com%2FVinCBR900%2FbootBASIC&file=basic.asm
 ---------------------------------------------------
 This is an integer BASIC language interpreter.
 
