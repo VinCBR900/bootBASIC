@@ -1,4 +1,4 @@
-;
+        ;
         ; bootBASIC interpreter in 512 bytes (boot sector)
         ;
         ; by Oscar Toledo G.
@@ -14,17 +14,13 @@
         ; Revision date: Jul/22/2019. Boot image now includes 'system'
         ;                             statement.
         ;
-        ;
-        ; See LICENSE
-        ;
-        ; This version Copyright 2026 Vincent Crabtree
-		; --------------------------------------------
+        ; This BASIC demo prog by Vincent Crabtree 2026
+	; --------------------------------------------
         ; This modification is functionally identical to Oscar's version,
         ; but designed to run in 8bitworkshop and also includes
-        ; a BASIC demo pre-typed. It also adds a NEW command to erase
-        ; the Demo program if desired.
-		;
-	  	; http://8bitworkshop.com/v3.12.1/?redir.html?platform=x86&githubURL=https%3A%2F%2Fgithub.com%2FVinCBR900%2FbootBASIC&file=basic.asm
+        ; a BASIC demo pre-typed.
+	;
+	; http://8bitworkshop.com/v3.12.1/?redir.html?platform=x86&githubURL=https%3A%2F%2Fgithub.com%2FVinCBR900%2FbootBASIC&file=basic.asm
         ;
         ; USER'S MANUAL:
         ;
@@ -148,35 +144,51 @@
 
         cpu 8086
         
-com_file:       equ 1
+%ifdef __YASM_MAJOR__
+    		SECTION .text	; running under 8 bit workshop
+com_file:	equ 0
+%else
+    %ifndef com_file    ; If not defined create a boot sector
+com_file:       equ 0
+    %endif
 
-
+    %if com_file
+        org 0x0100
+    %else
+        org 0x7c00
+    %endif
+%endif
 vars:       equ 0x7e00  ; Variables (multiple of 256)
 line:       equ 0x7e80  ; Line input
 
-progloc:    equ 0x8000  ; Program address
+program:    equ 0x8000  ; Program address
                         ; (notice optimizations dependent on this address)
 
 stack:      equ 0xff00  ; Stack address
-current_line:   equ vars-2 ; Current BASIC line during RUN
 max_line:   equ 1000    ; First unavailable line number
 max_length: equ 20      ; Maximum length of line inc CR
 max_size:   equ max_line*max_length ; Max. program size
 
-	SECTION .text
-
 start:
-        cld             ; Clear Direction flag
+    %if com_file
+    %else
         push cs         ; For boot sector
         push cs         ; it needs to setup
         push cs         ; DS, ES and SS.
         pop ds
         pop es
-        pop ss		; running as EXE so tidy up segments like COM
-	mov di,prog_end  ; Clear after program
+        pop ss
+    %endif
+        cld             ; Clear Direction flag
+%ifdef __YASM_MAJOR__
+	mov di,prog_end  ; Start at end of Mandelbrot
+%else
+	mov di,program  ; Point to program
+%endif
 f14:    mov byte [di],0x0d ; Fill with Carriage Return (CR) character
         inc di          ; Until reaching maximum 64K (DI becomes zero)
         jne f14
+
         ;
         ; Main loop
         ;
@@ -193,11 +205,8 @@ main_loop:
         xchg ax,di      
 ;       mov cx,max_length       ; CX loaded with this value in 'find_line'
         rep movsb       ; Copy entered line into program
-        ret		; pops earlier main_loop
+        ret		
 
-new_statement:
-	mov di,program  ; Point to program space start
-	jmp short f14
         ;
         ; Handle 'if' statement
         ;
@@ -227,7 +236,7 @@ f3:     add di,cx       ; Advance the list pointer
         inc di          ; Avoid the address
         inc di
         pop si
-        jmp short f5          ; Compare another statement
+        jmp f5          ; Compare another statement
 
 f4:     call get_variable       ; Try variable
         push ax         ; Save address
@@ -239,20 +248,12 @@ f4:     call get_variable       ; Try variable
         ; An error happened
         ;
 error:
-        call new_line
-        mov al,'@'
-        call output
-        cmp sp,stack-2      ; Interactive mode has no current line
-        je f33
-        mov ax,[current_line]
-        jmp short f34
-f33:    xor ax,ax
-f34:
-        call output_number
-        call new_line
+        mov si,error_message
+        call print_2    ; Show error message
         jmp main_loop   ; Exit to main loop
 
-
+error_message:
+        db "@#!",0x0d   ; Guess the words :P
 
         ;
         ; Handle 'list' statement
@@ -274,12 +275,7 @@ f30:    pop ax
         inc ax          ; Go to next line
         cmp ax,max_line ; Finished?
         jne f29         ; No, continue
-f6:	; drop through
-
-        ;
-        ; Handle 'rem' statement (comment)
-        ;
-rem_statement:
+f6:
         ret
         
         ;
@@ -313,13 +309,13 @@ f20:    cmp byte [si],'-'   ; Subtraction operator?
         call expr1_2        ; Call second tier
 f15:    pop cx
         add ax,cx           ; Addition
-        jmp short f20             ; Find more operators
+        jmp f20             ; Find more operators
 
 f19:
         push ax
         call expr1_2        ; Call second tier
         neg ax              ; Negate it (a - b converted to a + -b)
-        jmp short f15
+        jmp f15
 
         ;
         ; Handle an expression.
@@ -338,7 +334,7 @@ f21:    cmp byte [si],'/'   ; Division operator?
         call expr2_2        ; Call third tier
         pop cx
         imul cx             ; Multiplication
-        jmp short f21             ; Find more operators
+        jmp f21             ; Find more operators
 
 f23:
         push ax
@@ -347,7 +343,7 @@ f23:
         xchg ax,cx
         cwd                 ; Expand AX to DX:AX
         idiv cx             ; Signed division
-        jmp short f21             ; Find more operators
+        jmp f21             ; Find more operators
 
         ;
         ; Handle an expression.
@@ -406,12 +402,9 @@ spaces_2:
         ; The interpreter depends on this routine not modifying AX
         ;
 spaces:
-        cmp byte [si],0x0d    ; Stop at end of line
-        je space_ret
-        cmp byte [si],' '     ; Space?
-        je spaces_2           ; Yes
-space_ret:
-	ret
+        cmp byte [si],' '   ; Space found?
+        je spaces_2         ; Yes, move one character ahead.
+        ret                 ; No, return.
 
         ;
         ; Output unsigned number 
@@ -428,7 +421,7 @@ f26:
         call f26            ; Yes, output left side
 f8:     pop ax
         add al,'0'          ; Output remainder as...
-        jmp output          ; ...ASCII digit
+        jmp short output    ; ...ASCII digit
 
         ;
         ; Read number in input.
@@ -445,10 +438,16 @@ f11:    lodsb               ; Read source
         mov cx,10           ; Multiply by 10
         mul cx
         add bx,ax           ; Add new digit
-        jmp short f11             ; Continue
+        jmp f11             ; Continue
 
 f12:    dec si              ; SI points to first non-digit
         ret
+        
+        ;
+        ; Handle 'system' statement
+        ;
+system_statement:
+        int 0x20
 
         ;
         ; Handle 'goto' statement
@@ -470,13 +469,8 @@ f27:    cmp sp,stack-2      ; In interactive mode?
         mov [stack-4],ax    ; No, replace the saved address of next line
         ret
 f31:
-        mov si,ax
-        sub ax,program       ; Convert pointer into BASIC line number
-        cwd
-        mov cx,max_length
-        div cx
-        mov [current_line],ax
-        mov ax,si
+        push ax
+        pop si
         add ax,max_length   ; Point to next line
         push ax             ; Save for next time (this goes into address stack-4)
         call statement      ; Process current statement
@@ -496,7 +490,8 @@ f31:
 input_line:
         call output
         mov si,line
-        mov di,si       ; Target for writing line
+        push si
+        pop di          ; Target for writing line
 f1:     call input_key  ; Read keyboard
         stosb           ; Save key in buffer
         cmp al,0x08     ; Backspace?
@@ -573,8 +568,6 @@ find_line:
         mul cx
         add ax,program
         ret
-do_system:
-		int 0x20
 
         ;
         ; List of statements of bootBASIC
@@ -584,13 +577,10 @@ do_system:
         ;
 statements:
         db 4,"new"
-        dw new_statement
+        dw start
 
         db 5,"list"
         dw list_statement
-
-        db 4,"rem"
-        dw rem_statement
 
         db 4,"run"
         dw run_statement
@@ -608,155 +598,161 @@ statements:
         dw goto_statement
 
         db 7,"system"
-        dw do_system ; com file address zero should contain INT 20h but doesnt work
+        dw system_statement
 
         db 1
         
-	; Cant use two ORGS so pad to Progloc
-        TIMES progloc-($-$$) DB 0x0d
+%ifdef __YASM_MAJOR__
+      	; Cant use two ORGS so pad to program
+        TIMES program-($-$$) DB 0x0d
 
 ; Each line is given a max_length byte slot inc 0x0d sentinel
 
-program:	; start of program?
-        TIMES (progloc + 10*max_length)-($-$$) DB 0x0d
-        db " rem 16-bit fixedpt",0x0d      
-        TIMES (progloc + 20*max_length)-($-$$) DB 0x0d
-	db " rem mandelbrot",0x0d      
-        TIMES (progloc + 30*max_length)-($-$$) DB 0x0d
+	; BASIC program start
+        TIMES (program + 30*max_length)-($-$$) DB 0x0d
         db " y=-48",0x0d      
-        TIMES (progloc + 40*max_length)-($-$$) DB 0x0d
+        TIMES (program + 40*max_length)-($-$$) DB 0x0d
         db " l=51",0x0d   
-        TIMES (progloc + 50*max_length)-($-$$) DB 0x0d
+        TIMES (program + 50*max_length)-($-$$) DB 0x0d
         db " s=-64",0x0d   
-        TIMES (progloc + 60*max_length)-($-$$) DB 0x0d
+        TIMES (program + 60*max_length)-($-$$) DB 0x0d
         db " e=32",0x0d   
-        TIMES (progloc + 70*max_length)-($-$$) DB 0x0d
+        TIMES (program + 70*max_length)-($-$$) DB 0x0d
         db " t=3",0x0d   
-        TIMES (progloc + 80*max_length)-($-$$) DB 0x0d
+        TIMES (program + 80*max_length)-($-$$) DB 0x0d
         db " p=2",0x0d   
-        TIMES (progloc + 90*max_length)-($-$$) DB 0x0d
+        TIMES (program + 90*max_length)-($-$$) DB 0x0d
         db " x=s",0x0d   
-        TIMES (progloc + 100*max_length)-($-$$) DB 0x0d
+        TIMES (program + 100*max_length)-($-$$) DB 0x0d
         db " a=x",0x0d   
-        TIMES (progloc + 110*max_length)-($-$$) DB 0x0d
+        TIMES (program + 110*max_length)-($-$$) DB 0x0d
         db " b=y",0x0d   
-        TIMES (progloc + 120*max_length)-($-$$) DB 0x0d
+        TIMES (program + 120*max_length)-($-$$) DB 0x0d
         db " c=0",0x0d   
-        TIMES (progloc + 130*max_length)-($-$$) DB 0x0d
+        TIMES (program + 130*max_length)-($-$$) DB 0x0d
         db " d=0",0x0d   
-        TIMES (progloc + 140*max_length)-($-$$) DB 0x0d
+        TIMES (program + 140*max_length)-($-$$) DB 0x0d
         db " i=0",0x0d   
-        TIMES (progloc + 150*max_length)-($-$$) DB 0x0d
+        TIMES (program + 150*max_length)-($-$$) DB 0x0d
         db " f=(c*c)/32",0x0d   
-        TIMES (progloc + 160*max_length)-($-$$) DB 0x0d
+        TIMES (program + 160*max_length)-($-$$) DB 0x0d
         db " g=(d*d)/32",0x0d   
-        TIMES (progloc + 170*max_length)-($-$$) DB 0x0d
+        TIMES (program + 170*max_length)-($-$$) DB 0x0d
         db " m=(f+g)/128",0x0d
-        TIMES (progloc + 171*max_length)-($-$$) DB 0x0d
+        TIMES (program + 171*max_length)-($-$$) DB 0x0d
         db " if m goto 220",0x0d
-        TIMES (progloc + 180*max_length)-($-$$) DB 0x0d
+        TIMES (program + 180*max_length)-($-$$) DB 0x0d
         db " d=(c*d)/16+b",0x0d   
-        TIMES (progloc + 190*max_length)-($-$$) DB 0x0d
+        TIMES (program + 190*max_length)-($-$$) DB 0x0d
         db " c=f-g+a",0x0d   
-        TIMES (progloc + 200*max_length)-($-$$) DB 0x0d
+        TIMES (program + 200*max_length)-($-$$) DB 0x0d
         db " i=i+1",0x0d   
-        TIMES (progloc + 210*max_length)-($-$$) DB 0x0d
+        TIMES (program + 210*max_length)-($-$$) DB 0x0d
         db " if i-16 goto 150",0x0d   
-        TIMES (progloc + 220*max_length)-($-$$) DB 0x0d
+        TIMES (program + 220*max_length)-($-$$) DB 0x0d
         db " if i-8 goto 223",0x0d
-        TIMES (progloc + 221*max_length)-($-$$) DB 0x0d
+        TIMES (program + 221*max_length)-($-$$) DB 0x0d
         db " goto 290",0x0d
-        TIMES (progloc + 223*max_length)-($-$$) DB 0x0d
+        TIMES (program + 223*max_length)-($-$$) DB 0x0d
         db " if i-9 goto 225",0x0d
-        TIMES (progloc + 224*max_length)-($-$$) DB 0x0d
+        TIMES (program + 224*max_length)-($-$$) DB 0x0d
         db " goto 290",0x0d
-        TIMES (progloc + 225*max_length)-($-$$) DB 0x0d
+        TIMES (program + 225*max_length)-($-$$) DB 0x0d
         db " if i-10 goto 227",0x0d
-        TIMES (progloc + 226*max_length)-($-$$) DB 0x0d
+        TIMES (program + 226*max_length)-($-$$) DB 0x0d
         db " goto 290",0x0d
-        TIMES (progloc + 227*max_length)-($-$$) DB 0x0d
+        TIMES (program + 227*max_length)-($-$$) DB 0x0d
         db " if i-11 goto 230",0x0d
-        TIMES (progloc + 228*max_length)-($-$$) DB 0x0d
+        TIMES (program + 228*max_length)-($-$$) DB 0x0d
         db " goto 290",0x0d
-        TIMES (progloc + 230*max_length)-($-$$) DB 0x0d
+        TIMES (program + 230*max_length)-($-$$) DB 0x0d
         db " if i-12 goto 233",0x0d
-        TIMES (progloc + 231*max_length)-($-$$) DB 0x0d
+        TIMES (program + 231*max_length)-($-$$) DB 0x0d
         db " goto 300",0x0d
-        TIMES (progloc + 233*max_length)-($-$$) DB 0x0d
+        TIMES (program + 233*max_length)-($-$$) DB 0x0d
         db " if i-13 goto 235",0x0d
-        TIMES (progloc + 234*max_length)-($-$$) DB 0x0d
+        TIMES (program + 234*max_length)-($-$$) DB 0x0d
         db " goto 300",0x0d
-        TIMES (progloc + 235*max_length)-($-$$) DB 0x0d
+        TIMES (program + 235*max_length)-($-$$) DB 0x0d
         db " if i-14 goto 237",0x0d
-        TIMES (progloc + 236*max_length)-($-$$) DB 0x0d
+        TIMES (program + 236*max_length)-($-$$) DB 0x0d
         db " goto 300",0x0d
-        TIMES (progloc + 237*max_length)-($-$$) DB 0x0d
+        TIMES (program + 237*max_length)-($-$$) DB 0x0d
         db " if i-15 goto 239",0x0d
-        TIMES (progloc + 238*max_length)-($-$$) DB 0x0d
+        TIMES (program + 238*max_length)-($-$$) DB 0x0d
         db " goto 300",0x0d
-        TIMES (progloc + 239*max_length)-($-$$) DB 0x0d
+        TIMES (program + 239*max_length)-($-$$) DB 0x0d
         db " if i-16 goto 242",0x0d
-        TIMES (progloc + 240*max_length)-($-$$) DB 0x0d
+        TIMES (program + 240*max_length)-($-$$) DB 0x0d
         db " goto 300",0x0d
-        TIMES (progloc + 242*max_length)-($-$$) DB 0x0d
+        TIMES (program + 242*max_length)-($-$$) DB 0x0d
         db " if i-4 goto 245",0x0d
-        TIMES (progloc + 243*max_length)-($-$$) DB 0x0d
+        TIMES (program + 243*max_length)-($-$$) DB 0x0d
         db " goto 270",0x0d
-        TIMES (progloc + 245*max_length)-($-$$) DB 0x0d
+        TIMES (program + 245*max_length)-($-$$) DB 0x0d
         db " if i-5 goto 248",0x0d
-        TIMES (progloc + 246*max_length)-($-$$) DB 0x0d
+        TIMES (program + 246*max_length)-($-$$) DB 0x0d
         db " goto 270",0x0d
-        TIMES (progloc + 248*max_length)-($-$$) DB 0x0d
+        TIMES (program + 248*max_length)-($-$$) DB 0x0d
         db " if i-6 goto 251",0x0d
-        TIMES (progloc + 249*max_length)-($-$$) DB 0x0d
+        TIMES (program + 249*max_length)-($-$$) DB 0x0d
         db " goto 280",0x0d
-        TIMES (progloc + 250*max_length)-($-$$) DB 0x0d
+        TIMES (program + 250*max_length)-($-$$) DB 0x0d
         db " print ",0x22," ",0x22,";",0x0d   
-        TIMES (progloc + 251*max_length)-($-$$) DB 0x0d
+        TIMES (program + 251*max_length)-($-$$) DB 0x0d
         db " if i-7 goto 254",0x0d
-        TIMES (progloc + 252*max_length)-($-$$) DB 0x0d
+        TIMES (program + 252*max_length)-($-$$) DB 0x0d
         db " goto 280",0x0d
-        TIMES (progloc + 254*max_length)-($-$$) DB 0x0d
+        TIMES (program + 254*max_length)-($-$$) DB 0x0d
         db " if i-2 goto 257",0x0d
-        TIMES (progloc + 255*max_length)-($-$$) DB 0x0d
+        TIMES (program + 255*max_length)-($-$$) DB 0x0d
         db " goto 260",0x0d
-        TIMES (progloc + 257*max_length)-($-$$) DB 0x0d
+        TIMES (program + 257*max_length)-($-$$) DB 0x0d
         db " if i-3 goto 262",0x0d  ; FIX: was goto 250, caused infinite loop for i==1
-        TIMES (progloc + 258*max_length)-($-$$) DB 0x0d
+        TIMES (program + 258*max_length)-($-$$) DB 0x0d
         db " goto 260",0x0d
-        TIMES (progloc + 260*max_length)-($-$$) DB 0x0d
+        TIMES (program + 260*max_length)-($-$$) DB 0x0d
         db " print ",0x22,".",0x22,";",0x0d
-        TIMES (progloc + 261*max_length)-($-$$) DB 0x0d
+        TIMES (program + 261*max_length)-($-$$) DB 0x0d
         db " goto 310",0x0d
-        TIMES (progloc + 262*max_length)-($-$$) DB 0x0d
+        TIMES (program + 262*max_length)-($-$$) DB 0x0d
         db " print ",0x22," ",0x22,";",0x0d  ; i==1: print space
-        TIMES (progloc + 263*max_length)-($-$$) DB 0x0d
+        TIMES (program + 263*max_length)-($-$$) DB 0x0d
         db " goto 310",0x0d
-        TIMES (progloc + 270*max_length)-($-$$) DB 0x0d
+        TIMES (program + 270*max_length)-($-$$) DB 0x0d
         db " print ",0x22,"-",0x22,";",0x0d   
-        TIMES (progloc + 271*max_length)-($-$$) DB 0x0d
+        TIMES (program + 271*max_length)-($-$$) DB 0x0d
         db " goto 310",0x0d   
-        TIMES (progloc + 280*max_length)-($-$$) DB 0x0d
+        TIMES (program + 280*max_length)-($-$$) DB 0x0d
         db " print ",0x22,"+",0x22,";",0x0d   
-        TIMES (progloc + 281*max_length)-($-$$) DB 0x0d
+        TIMES (program + 281*max_length)-($-$$) DB 0x0d
         db " goto 310",0x0d   
-        TIMES (progloc + 290*max_length)-($-$$) DB 0x0d
+        TIMES (program + 290*max_length)-($-$$) DB 0x0d
         db " print ",0x22,"*",0x22,";",0x0d   
-        TIMES (progloc + 291*max_length)-($-$$) DB 0x0d
+        TIMES (program + 291*max_length)-($-$$) DB 0x0d
         db " goto 310",0x0d   
-        TIMES (progloc + 300*max_length)-($-$$) DB 0x0d
+        TIMES (program + 300*max_length)-($-$$) DB 0x0d
         db " print ",0x22,"#",0x22,";",0x0d   
-        TIMES (progloc + 301*max_length)-($-$$) DB 0x0d
+        TIMES (program + 301*max_length)-($-$$) DB 0x0d
         db " goto 310",0x0d   
-        TIMES (progloc + 310*max_length)-($-$$) DB 0x0d
+        TIMES (program + 310*max_length)-($-$$) DB 0x0d
         db " x=x+p",0x0d   
-        TIMES (progloc + 320*max_length)-($-$$) DB 0x0d
+        TIMES (program + 320*max_length)-($-$$) DB 0x0d
         db " if x-32 goto 100",0x0d
-        TIMES (progloc + 330*max_length)-($-$$) DB 0x0d
+        TIMES (program + 330*max_length)-($-$$) DB 0x0d
         db " print",0x0d   
-        TIMES (progloc + 340*max_length)-($-$$) DB 0x0d
+        TIMES (program + 340*max_length)-($-$$) DB 0x0d
         db " y=y+t",0x0d   
-        TIMES (progloc + 350*max_length)-($-$$) DB 0x0d
+        TIMES (program + 350*max_length)-($-$$) DB 0x0d
         db " if y-l goto 90",0x0d
 prog_end:   
-        end
+%else
+        ;
+        ; Boot sector filler
+        ;
+    %if com_file
+    %else
+        times 510-($-$$) db 0x4f
+        db 0x55,0xaa            ; Make it a bootable sector
+    %endif
+%endif
